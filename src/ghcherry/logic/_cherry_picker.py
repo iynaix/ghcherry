@@ -100,6 +100,19 @@ class CherryPicker(AbstractAPIClient):
         # and get that tree!
         merge_tree = merge["commit"]["tree"]["sha"]
 
+        # If the tree is unchanged, the commit is already applied
+        # (e.g. the PR was merged upstream), so don't create an empty commit.
+        if merge_tree == branch_tree:
+            print(f"Skipping {commit.repr}: already applied, nothing to cherry-pick.")
+            _ = (
+                await self.client.patch(
+                    f"https://api.github.com/repos/{self.target.repo}"
+                    + f"/git/refs/heads/{self.target.ref}",
+                    json={"sha": branch_sha, "force": True},
+                )
+            ).raise_for_status()
+            return
+
         # Now that we know what the tree should be, create the cherry-pick commit.
         # Note that branchSha is the original from up at the top.
         cherry = (
